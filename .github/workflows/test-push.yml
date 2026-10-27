@@ -11,6 +11,11 @@ jobs:
       - env:
           PUSH: ${{ vars.PUSH || secrets.PUSH }}
           NTFY_TOPIC: ${{ vars.NTFY_TOPIC || secrets.NTFY_TOPIC }}
+          BARK_URL: ${{ vars.BARK_URL || secrets.BARK_URL }}
+          SC_KEY: ${{ vars.SC_KEY || secrets.SC_KEY }}
+          TG_TOKEN: ${{ vars.TG_TOKEN || secrets.TG_TOKEN }}
+          TG_CHAT: ${{ vars.TG_CHAT || secrets.TG_CHAT }}
+          WEBHOOK_URL: ${{ vars.WEBHOOK_URL || secrets.WEBHOOK_URL }}
           FORCE_TEST: "1"
         run: |
           cd cloud
