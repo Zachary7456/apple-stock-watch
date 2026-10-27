@@ -1,0 +1,54 @@
+# 放到仓库的 .github/workflows/watch.yml
+# 云端巡检 iPhone Duo 库存，与手机状态完全无关
+name: iPhone Duo Stock Watch
+
+on:
+  schedule:
+    # UTC 03:00-18:55 = 北京 11:00-02:55；下面一行覆盖北京 03:00
+    - cron: "*/5 3-18 * * *"
+    - cron: "0 19 * * *"
+  workflow_dispatch:            # 手动测试按钮
+  repository_dispatch:          # 供 cron-job.org 每分钟触发
+    types: [check-stock]
+
+concurrency:
+  group: stock-watch
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Restore dedupe state
+        uses: actions/cache/restore@v4
+        with:
+          path: cloud/state.json
+          key: stock-state-${{ github.run_id }}
+          restore-keys: stock-state-
+
+      - name: Check stock
+        env:
+          PUSH: ${{ vars.PUSH || secrets.PUSH }}
+          NTFY_TOPIC: ${{ vars.NTFY_TOPIC || secrets.NTFY_TOPIC }}
+          BARK_URL: ${{ vars.BARK_URL || secrets.BARK_URL }}
+          SC_KEY: ${{ vars.SC_KEY || secrets.SC_KEY }}
+          TG_TOKEN: ${{ vars.TG_TOKEN || secrets.TG_TOKEN }}
+          TG_CHAT: ${{ vars.TG_CHAT || secrets.TG_CHAT }}
+          WEBHOOK_URL: ${{ vars.WEBHOOK_URL || secrets.WEBHOOK_URL }}
+        run: |
+          cd cloud
+          python watch.py
+
+      - name: Save dedupe state
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: cloud/state.json
+          key: stock-state-${{ github.run_id }}
