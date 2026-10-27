@@ -88,39 +88,49 @@ def query(part, store, retries=3):
     return "unknown"
 
 
-def push(title, body):
-    kind = os.environ.get("PUSH", "").lower()
-    if not kind:
-        print("[未配置推送]", title, "|", body)
-        return
-
+def _send_one(kind, title, body):
     def _open(url, data=None, headers=None):
         req = urllib.request.Request(url, data=data, headers=headers or {})
         urllib.request.urlopen(req, timeout=25).read()
 
-    try:
-        if kind == "ntfy":
-            _open(f"https://ntfy.sh/{os.environ['NTFY_TOPIC']}",
-                  data=body.encode("utf-8"),
-                  headers={"Title": title.encode("utf-8").decode("latin-1"),
-                           "Priority": "5", "Tags": "apple"})
-        elif kind == "bark":
-            _open(f"{os.environ['BARK_URL'].rstrip('/')}/{urllib.parse.quote(title)}/"
-                  f"{urllib.parse.quote(body)}")
-        elif kind == "serverchan":
-            _open(f"https://sctapi.ftqq.com/{os.environ['SC_KEY']}.send?"
-                  f"title={urllib.parse.quote(title)}&desp={urllib.parse.quote(body)}")
-        elif kind == "telegram":
-            _open(f"https://api.telegram.org/bot{os.environ['TG_TOKEN']}/sendMessage?"
-                  f"chat_id={os.environ['TG_CHAT']}&text="
-                  f"{urllib.parse.quote(title + chr(10) + body)}")
-        elif kind == "webhook":
-            _open(os.environ["WEBHOOK_URL"],
-                  data=json.dumps({"text": f"{title}\n{body}"}).encode(),
-                  headers={"Content-Type": "application/json"})
-        print("推送已发送:", kind)
-    except Exception as e:
-        print("推送失败:", type(e).__name__, e)
+    if kind == "ntfy":
+        _open(f"https://ntfy.sh/{os.environ['NTFY_TOPIC']}",
+              data=body.encode("utf-8"),
+              headers={"Title": title.encode("utf-8").decode("latin-1"),
+                       "Priority": "5", "Tags": "apple"})
+    elif kind == "bark":
+        _open(f"{os.environ['BARK_URL'].rstrip('/')}/"
+              f"{urllib.parse.quote(title)}/{urllib.parse.quote(body)}?group=duo&level=timeSensitive")
+    elif kind == "serverchan":
+        _open(f"https://sctapi.ftqq.com/{os.environ['SC_KEY']}.send?"
+              f"title={urllib.parse.quote(title)}&desp={urllib.parse.quote(body)}")
+    elif kind == "telegram":
+        _open(f"https://api.telegram.org/bot{os.environ['TG_TOKEN']}/sendMessage?"
+              f"chat_id={os.environ['TG_CHAT']}&text="
+              f"{urllib.parse.quote(title + chr(10) + body)}")
+    elif kind == "webhook":
+        _open(os.environ["WEBHOOK_URL"],
+              data=json.dumps({"text": f"{title}\n{body}"}).encode(),
+              headers={"Content-Type": "application/json"})
+    else:
+        raise ValueError(f"未知通道 {kind}")
+
+
+def push(title, body):
+    """PUSH 支持逗号分隔多通道，例如 PUSH=bark,ntfy（任意一个成功即算送达）"""
+    kinds = [k.strip().lower() for k in os.environ.get("PUSH", "").split(",") if k.strip()]
+    if not kinds:
+        print("[未配置推送]", title, "|", body)
+        return
+    ok = []
+    for kind in kinds:
+        try:
+            _send_one(kind, title, body)
+            ok.append(kind)
+            print(f"推送成功: {kind}")
+        except Exception as e:
+            print(f"推送失败 {kind}: {type(e).__name__} {e}")
+    return ok
 
 
 def load_state():
