@@ -1,0 +1,17 @@
+name: Test Push
+on:
+  workflow_dispatch:
+jobs:
+  t:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - env:
+          PUSH: ${{ vars.PUSH || secrets.PUSH }}
+          NTFY_TOPIC: ${{ vars.NTFY_TOPIC || secrets.NTFY_TOPIC }}
+          FORCE_TEST: "1"
+        run: |
+          cd cloud
+          python watch.py
