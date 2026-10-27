@@ -1,5 +1,6 @@
 # 放到仓库的 .github/workflows/watch.yml
 # 云端巡检 iPhone Duo 库存，与手机状态完全无关
+# schedule re-register: 2026-10-27 18:34 UTC
 name: iPhone Duo Stock Watch
 
 on:
