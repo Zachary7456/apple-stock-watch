@@ -132,6 +132,12 @@ def load_state():
 
 
 def main():
+    if os.environ.get("FORCE_TEST"):
+        push("🧪 云端测试推送",
+             "这条是 GitHub Actions 真实发出的，说明云端→手机链路完好。\n"
+             "真正有货时，标题会变成「📦 iPhone Duo 有货了！」")
+        print("测试推送已从云端发出")
+        return 0
     state = load_state()
     hits, lines, unknown = [], [], 0
     for part, label in TARGETS.items():
