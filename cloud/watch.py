@@ -99,8 +99,10 @@ def _send_one(kind, title, body):
               headers={"Title": title.encode("utf-8").decode("latin-1"),
                        "Priority": "5", "Tags": "apple"})
     elif kind == "bark":
+        # safe='' 必须保留：否则正文里的 https:// 斜杠不转义，Bark 会按路径切分并返回 404
         _open(f"{os.environ['BARK_URL'].rstrip('/')}/"
-              f"{urllib.parse.quote(title)}/{urllib.parse.quote(body)}?group=duo&level=timeSensitive")
+              f"{urllib.parse.quote(title, safe='')}/"
+              f"{urllib.parse.quote(body, safe='')}?group=duo&level=timeSensitive")
     elif kind == "serverchan":
         _open(f"https://sctapi.ftqq.com/{os.environ['SC_KEY']}.send?"
               f"title={urllib.parse.quote(title)}&desp={urllib.parse.quote(body)}")
@@ -124,12 +126,17 @@ def push(title, body):
         return
     ok = []
     for kind in kinds:
-        try:
-            _send_one(kind, title, body)
-            ok.append(kind)
-            print(f"推送成功: {kind}")
-        except Exception as e:
-            print(f"推送失败 {kind}: {type(e).__name__} {e}")
+        for attempt in (1, 2):
+            try:
+                _send_one(kind, title, body)
+                ok.append(kind)
+                print(f"推送成功: {kind}" + ("" if attempt == 1 else "（第2次重试成功）"))
+                break
+            except Exception as e:
+                if attempt == 2:
+                    print(f"推送失败 {kind}: {type(e).__name__} {e}")
+                else:
+                    time.sleep(3)
     return ok
 
 
