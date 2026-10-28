@@ -22,6 +22,7 @@ import sys
 import json
 import time
 import subprocess
+import urllib.error
 import urllib.parse
 import urllib.request
 
@@ -79,6 +80,13 @@ def query(part, store, retries=3):
             st = j["body"]["stores"][0]
             pa = st["partsAvailability"][part]
             return pa.get("pickupDisplay") or "unknown"
+        except urllib.error.HTTPError as e:
+            if e.code in (503, 502, 504):
+                return "maintenance"        # Apple Store 维护中，不必重试
+            if i == retries - 1:
+                print(f"  ! {store}/{part} 查询失败: HTTP {e.code}")
+                return "unknown"
+            time.sleep(3 * (i + 1))
         except Exception as e:
             if i == retries - 1:
                 j2 = _curl_query(url)          # curl 兜底
@@ -164,19 +172,38 @@ def main():
         return 0
     state = load_state()
     hits, lines, unknown = [], [], 0
+    maintenance = False
     for part, label in TARGETS.items():
+        if maintenance:
+            break
         row = []
         for sid, sname in STORES.items():
             st = query(part, sid)
+            if st == "maintenance":
+                maintenance = True
+                break
             icon = {"available": "✅", "unavailable": "❌"}.get(st, "⚠️")
             row.append(f"{sname}{icon}")
             if st == "unknown":
                 unknown += 1
             elif st == "available":
                 hits.append((part, label, sname, sid))
-        lines.append(f"{label}： " + " ".join(row))
+        lines.append(f"{label}： " + (" ".join(row) if row else "—"))
     for l in lines:
         print(l)
+
+    if maintenance:
+        # Apple Store 维护中：属于正常现象，1 小时内只提醒一次，退出码 0（不算失败）
+        now_m = time.time()
+        print("Apple Store 维护中（HTTP 503），恢复后自动继续巡检")
+        if now_m - state.get("maint_alert", 0) > 3600:
+            push("⏸ Apple Store 维护中",
+                 "苹果商店正在更新（HTTP 503），巡检会自动等待恢复。\n"
+                 "若长时间不恢复，可能是接口变动，需人工检查。")
+            state["maint_alert"] = now_m
+            with open(STATE, "w", encoding="utf-8") as f:
+                json.dump(state, f, ensure_ascii=False, indent=1)
+        return 0
 
     total = len(TARGETS) * len(STORES)
     if unknown == total:
