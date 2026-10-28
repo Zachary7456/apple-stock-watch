@@ -27,8 +27,14 @@ import urllib.request
 
 TARGETS = {
     "MK2M4CH/A": "iPhone Duo 256GB 星光白色",
+    "MK2N4CH/A": "iPhone Duo 256GB 夜空色",
+    # 需要其它容量/颜色时取消注释即可（已核对过官网标题）：
     # "MK2P4CH/A": "iPhone Duo 512GB 星光白色",
-    # "MK2N4CH/A": "iPhone Duo 256GB 夜空色",
+    # "MK2Q4CH/A": "iPhone Duo 512GB 夜空色",
+    # "MK2T4CH/A": "iPhone Duo 1TB 星光白色",
+    # "MK2U4CH/A": "iPhone Duo 1TB 夜空色",
+    # "MK2V4CH/A": "iPhone Duo 2TB 星光白色",
+    # "MK2W4CH/A": "iPhone Duo 2TB 夜空色",
 }
 
 STORES = {
@@ -159,15 +165,18 @@ def main():
     state = load_state()
     hits, lines, unknown = [], [], 0
     for part, label in TARGETS.items():
+        row = []
         for sid, sname in STORES.items():
             st = query(part, sid)
             icon = {"available": "✅", "unavailable": "❌"}.get(st, "⚠️")
-            lines.append(f"{sname}{icon}")
+            row.append(f"{sname}{icon}")
             if st == "unknown":
                 unknown += 1
             elif st == "available":
                 hits.append((part, label, sname, sid))
-    print(" ".join(lines))
+        lines.append(f"{label}： " + " ".join(row))
+    for l in lines:
+        print(l)
 
     total = len(TARGETS) * len(STORES)
     if unknown == total:
