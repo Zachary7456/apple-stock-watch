@@ -83,6 +83,8 @@ def query(part, store, retries=3):
         except urllib.error.HTTPError as e:
             if e.code in (503, 502, 504):
                 return "maintenance"        # Apple Store 维护中，不必重试
+            if e.code == 541:
+                return "throttled"          # 苹果限流（换 IP 即恢复），不必重试
             if i == retries - 1:
                 print(f"  ! {store}/{part} 查询失败: HTTP {e.code}")
                 return "unknown"
@@ -171,7 +173,7 @@ def main():
         print("测试推送已从云端发出")
         return 0
     state = load_state()
-    hits, lines, unknown = [], [], 0
+    hits, lines, unknown, throttled = [], [], 0, 0
     maintenance = False
     for part, label in TARGETS.items():
         if maintenance:
@@ -184,7 +186,9 @@ def main():
                 break
             icon = {"available": "✅", "unavailable": "❌"}.get(st, "⚠️")
             row.append(f"{sname}{icon}")
-            if st == "unknown":
+            if st == "throttled":
+                throttled += 1
+            elif st == "unknown":
                 unknown += 1
             elif st == "available":
                 hits.append((part, label, sname, sid))
@@ -206,10 +210,34 @@ def main():
         return 0
 
     total = len(TARGETS) * len(STORES)
-    if unknown == total:
+    answered = unknown + throttled
+
+    if throttled >= total:
+        # 苹果对这台 runner 的 IP 限流：下一次换 IP 通常自动恢复
+        print("本轮被苹果限流（541），自动跳过")
+        state["throttle_streak"] = state.get("throttle_streak", 0) + 1
+        if state["throttle_streak"] == 3:
+            push("⚠️ 连续限流提醒",
+                 "已连续 3 轮被苹果限流（HTTP 541），先观察；\n"
+                 "若持续 30 分钟以上不退，可能需降低巡检频率。")
+        with open(STATE, "w", encoding="utf-8") as f:
+            json.dump(state, f, ensure_ascii=False, indent=1)
+        return 0
+
+    if answered >= total:
         print("全部查询失败（网络或接口异常）")
-        push("⚠️ 云端巡检异常", "本次全部查询失败，可能是网络或苹果接口变动，请检查 Actions 日志。")
-        return 1
+        state["fail_streak"] = state.get("fail_streak", 0) + 1
+        if state["fail_streak"] >= 3:
+            push("⚠️ 云端巡检异常",
+                 f"已连续 {state['fail_streak']} 轮查询全部失败，"
+                 "可能是网络或苹果接口变动，请检查 Actions 日志。")
+        with open(STATE, "w", encoding="utf-8") as f:
+            json.dump(state, f, ensure_ascii=False, indent=1)
+        return 0
+
+    if state.get("fail_streak") or state.get("throttle_streak"):
+        state["fail_streak"] = 0
+        state["throttle_streak"] = 0
 
     if not hits:
         print("无货")
